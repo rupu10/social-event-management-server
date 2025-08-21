@@ -68,57 +68,107 @@ async function run() {
       .collection("joinEvents");
 
     // events api
+
+
     
-    app.get(
-      "/events",
-      async (req, res) => {
-        const { email, title } = req.query;
+    // app.get(
+    //   "/events",
+    //   async (req, res) => {
+    //     const { email, title } = req.query;
 
-        const query = {};
-        if (email) {
-          query.creator_email = email;
-        }
+    //     const query = {};
+    //     if (email) {
+    //       query.creator_email = email;
+    //     }
 
-        if (title) {
-          query.title = { $regex: title, $options: "i" };
-        }
-        const now = Date.now();
-        //   query.eventDateNumber = { $gte: now };
+    //     if (title) {
+    //       query.title = { $regex: title, $options: "i" };
+    //     }
+    //     const now = Date.now();
+    //     //   query.eventDateNumber = { $gte: now };
 
-        const futureQuery = {
-          ...query,
-          eventDateNumber: { $gte: now },
-        };
+    //     const futureQuery = {
+    //       ...query,
+    //       eventDateNumber: { $gte: now },
+    //     };
 
-        const pastQuery = {
-          ...query,
-          eventDateNumber: { $lt: now },
-        };
+    //     const pastQuery = {
+    //       ...query,
+    //       eventDateNumber: { $lt: now },
+    //     };
 
-        const noDateQuery = {
-          ...query,
-          eventDateNumber: { $exists: false },
-        };
+    //     const noDateQuery = {
+    //       ...query,
+    //       eventDateNumber: { $exists: false },
+    //     };
 
-        const upcomingEvents = await eventsCollection
-          .find(futureQuery)
-          .sort({ eventDateNumber: 1 })
-          .toArray();
+    //     const upcomingEvents = await eventsCollection
+    //       .find(futureQuery)
+    //       .sort({ eventDateNumber: 1 })
+    //       .toArray();
 
-        const pastEvents = await eventsCollection
-          .find(pastQuery)
-          .sort({ eventDateNumber: 1 })
-          .toArray();
+    //     const pastEvents = await eventsCollection
+    //       .find(pastQuery)
+    //       .sort({ eventDateNumber: 1 })
+    //       .toArray();
 
-        const undatedEvents = await eventsCollection
-          .find(noDateQuery)
-          .toArray();
+    //     const undatedEvents = await eventsCollection
+    //       .find(noDateQuery)
+    //       .toArray();
 
-        const allEvents = [...upcomingEvents, ...pastEvents, ...undatedEvents];
+    //     const allEvents = [...upcomingEvents, ...pastEvents, ...undatedEvents];
 
-        res.send(allEvents);
-      }
-    );
+    //     res.send(allEvents);
+    //   }
+    // );
+
+    app.get("/events", async (req, res) => {
+  const { email, title, sort } = req.query;
+  const query = {};
+
+  if (email) query.creator_email = email;
+  if (title) query.title = { $regex: title, $options: "i" };
+
+  const now = Date.now();
+
+  const futureQuery = { ...query, eventDateNumber: { $gte: now } };
+  const pastQuery = { ...query, eventDateNumber: { $lt: now } };
+  const noDateQuery = { ...query, eventDateNumber: { $exists: false } };
+
+  let events = [];
+
+  if (sort === "upcoming") {
+    // upcoming first, then past
+    const upcomingEvents = await eventsCollection
+      .find(futureQuery)
+      .sort({ eventDateNumber: 1 })
+      .toArray();
+    const pastEvents = await eventsCollection
+      .find(pastQuery)
+      .sort({ eventDateNumber: 1 })
+      .toArray();
+    const undatedEvents = await eventsCollection.find(noDateQuery).toArray();
+    events = [...upcomingEvents, ...pastEvents, ...undatedEvents];
+  } else if (sort === "past") {
+    // past first, then upcoming
+    const pastEvents = await eventsCollection
+      .find(pastQuery)
+      .sort({ eventDateNumber: -1 })
+      .toArray();
+    const upcomingEvents = await eventsCollection
+      .find(futureQuery)
+      .sort({ eventDateNumber: 1 })
+      .toArray();
+    const undatedEvents = await eventsCollection.find(noDateQuery).toArray();
+    events = [...pastEvents, ...upcomingEvents, ...undatedEvents];
+  } else {
+    // default: all unsorted
+    events = await eventsCollection.find(query).toArray();
+  }
+
+  res.send(events);
+});
+
 
 
 app.get("/manage-event",verifyFirebaseToken,
